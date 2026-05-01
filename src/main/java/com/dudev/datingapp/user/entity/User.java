@@ -11,6 +11,8 @@ import java.time.LocalDate;
 @Getter
 @Setter
 @NoArgsConstructor
+@Builder
+@AllArgsConstructor
 public class User extends BaseEntity {
 
     @Column(unique = true, nullable = false)
