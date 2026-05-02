@@ -22,16 +22,18 @@ public class AdminInitializer implements CommandLineRunner {
     private String adminPassword;
     @Value("${app.admin.username:admin123}")
     private String adminUsername;
+    @Value("${app.admin.phone:+79000000000}")
+    private String adminPhone;
 
     @Override
     public void run(String... args) {
         if (!userRepository.existsUserByName(adminUsername)) {
             User user = User.builder()
-                    .password(passwordEncoder.encode(adminUsername))
-                    .name(adminPassword)
-                    .phone("12")
-                    .birthDate(LocalDate.now())
-                    .googleSub("123")
+                    .password(passwordEncoder.encode(adminPassword))
+                    .name(adminUsername)
+                    .phone(adminPhone)
+                    .birthDate(LocalDate.now().minusYears(30))
+                    .googleSub("admin-google-sub")
                     .gender(Gender.MALE)
                     .build();
             userRepository.save(user);

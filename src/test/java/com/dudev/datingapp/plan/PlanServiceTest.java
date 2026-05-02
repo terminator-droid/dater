@@ -47,7 +47,7 @@ class PlanServiceTest {
 
     private PlanService planService;
 
-    private static final LocalDate TODAY = LocalDate.of(2026, 5, 1);
+    private static final LocalDate TODAY = LocalDate.now();
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID VENUE_ID = UUID.randomUUID();
 

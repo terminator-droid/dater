@@ -30,4 +30,8 @@ public interface MatchRepository extends JpaRepository<Match, UUID> {
     int updateStatus(@Param("cutoff") LocalDate cutoff,
                      @Param("oldStatus") MatchStatus oldStatus,
                      @Param("newStatus") MatchStatus newStatus);
+
+    @Modifying
+    @Query("DELETE FROM Match m WHERE m.user1Id = :userId OR m.user2Id = :userId")
+    void deleteAllByUserId(@Param("userId") UUID userId);
 }

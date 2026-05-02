@@ -38,6 +38,9 @@ public class AuthService {
         if (userRepository.existsByPhone(request.phone())) {
             throw new ConflictException("Phone already registered");
         }
+        if (request.birthDate().isAfter(java.time.LocalDate.now().minusYears(18))) {
+            throw new IllegalArgumentException("You must be at least 18 years old");
+        }
         User user = new User();
         user.setPhone(request.phone());
         user.setPassword(passwordEncoder.encode(request.password()));
@@ -65,6 +68,10 @@ public class AuthService {
         }
         redisTemplate.delete(key);
         return issueTokens(UUID.fromString(userIdStr));
+    }
+
+    public void logout(String refreshToken) {
+        redisTemplate.delete(REFRESH_PREFIX + refreshToken);
     }
 
     @Transactional

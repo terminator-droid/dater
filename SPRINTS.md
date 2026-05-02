@@ -61,11 +61,46 @@
 
 ---
 
-## Sprint 5 — Уведомления, Статус и Финальный polish
+## Sprint 5 — Уведомления, Статус и Финальный polish ✅
 
-- [ ] Kafka consumer на `match-events` → `NotificationService` (stub → лог, потом FCM)
-- [ ] Онлайн-статус: `user:{id}:online` TTL в Redis через `HandlerInterceptor`
-- [ ] `@Scheduled` job: перевод просроченных матчей в `EXPIRED`
-- [ ] OAuth2 вход через Google (`POST /api/v1/auth/oauth2/google`)
-- [ ] Integration-тесты с Testcontainers: регистрация, создание плана, свайп→матч
-- [ ] `@WebMvcTest` для ключевых контроллеров
+- [x] Kafka consumer на `match-events` → `NotificationService` (stub → лог, потом FCM)
+- [x] Онлайн-статус: `user:{id}:online` TTL в Redis через `HandlerInterceptor`
+- [x] `@Scheduled` job: перевод просроченных матчей в `EXPIRED`
+- [x] OAuth2 вход через Google (`POST /api/v1/auth/oauth2/google`)
+- [x] Integration-тесты с Testcontainers: регистрация, создание плана, свайп→матч
+- [~] `@WebMvcTest` для ключевых контроллеров (отложено)
+
+---
+
+## Sprint 6 — OpenAPI-документация и Профиль пользователя
+
+- [x] `@Operation` / `@Tag` аннотации на всех контроллерах (Swagger UI)
+- [x] `GET /api/v1/users/{id}` — публичный профиль (фото, без имени/возраста)
+- [x] `GET /api/v1/users/me/online` — проверить свой онлайн-статус
+- [x] Валидация `RegisterRequest`: формат телефона (`@Pattern`), возраст ≥ 18 лет, `@Past` на birthDate
+- [x] `DELETE /api/v1/users/me` — удаление аккаунта (каскад: планы, свайпы, матчи, фото, Redis)
+- [x] `PATCH /api/v1/users/me/location` — обновить гео-позицию вручную (для тестирования дискавери)
+- [x] `GET /api/v1/venues/nearby?lat=&lon=&radius=` — заведения поблизости (Haversine)
+- [x] S3-хранилище фото: MinIO в docker-compose, AWS SDK v2, `S3Config`, `S3BucketInitializer`
+
+---
+
+## Sprint 7 — Bugfix: критические ошибки и недостающий функционал
+
+### Критические баги
+
+- [x] **`AdminInitializer`** — исправить swapped fields: `setPassword` кодирует `adminUsername` вместо `adminPassword`, `setName` ставит `adminPassword` вместо имени; phone `"12"` не проходит `@Pattern` → задать корректные значения из `@Value`
+- [x] **Google OAuth — переполнение VARCHAR(20)** — `"google:" + sub` (~28 символов) не влезает в `users.phone VARCHAR(20)`; расширить колонку до `VARCHAR(64)` через новую Liquibase-миграцию
+- [x] **Kafka poison pill в `MatchService.createMatchIfAbsent`** — если план не найден, бросается `ResourceNotFoundException` → consumer застревает на одном offset; обернуть в `try/catch`, логировать и пропускать сообщение
+- [x] **Отсутствует `ON DELETE CASCADE` на FK в `swipes` и `matches`** — добавить каскадное удаление через новую Liquibase-миграцию (`ALTER TABLE swipes ADD CONSTRAINT ... ON DELETE CASCADE`, аналогично для `matches`)
+
+### Отсутствующий функционал MVP
+
+- [x] **`POST /api/v1/auth/logout`** — удалять refresh-токен из Redis; без этого скомпрометированный токен нельзя инвалидировать
+- [x] **Валидация типа файла при загрузке фото** — в `PhotoController` / `PhotoStorageService` проверять MIME-тип (`image/jpeg`, `image/png`, `image/webp`, `image/gif`); отклонять всё остальное с 400
+- [x] **`UpdateProfileDto` — валидация birthDate** — добавить `@Past` и проверку возраста ≥ 18 лет в `updateProfile` (аналогично `RegisterRequest` + `AuthService.register`)
+
+### Мелкие проблемы
+
+- [x] **`SecurityConfig` — дублирующийся `requestMatchers` для Swagger** — убрать дублирующийся блок `permitAll` для `/swagger-ui/**` и `/v3/api-docs/**`
+- [x] **Kafka consumers — отсутствует `try/catch`** — `SwipeEventConsumer` и `NotificationConsumer` не оборачивают тело в `try/catch`; любое runtime-исключение = бесконечный retry; добавить `try/catch (Exception e)` с `log.error`

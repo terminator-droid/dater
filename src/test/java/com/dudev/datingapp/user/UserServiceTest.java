@@ -1,6 +1,9 @@
 package com.dudev.datingapp.user;
 
 import com.dudev.datingapp.common.exception.ResourceNotFoundException;
+import com.dudev.datingapp.match.repository.MatchRepository;
+import com.dudev.datingapp.plan.repository.EveningPlanRepository;
+import com.dudev.datingapp.swipe.repository.SwipeRepository;
 import com.dudev.datingapp.user.dto.UpdateProfileDto;
 import com.dudev.datingapp.user.dto.UserProfileDto;
 import com.dudev.datingapp.user.entity.Gender;
@@ -14,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
@@ -32,12 +36,17 @@ class UserServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private PhotoRepository photoRepository;
     @Mock private PhotoStorageService storageService;
+    @Mock private SwipeRepository swipeRepository;
+    @Mock private MatchRepository matchRepository;
+    @Mock private EveningPlanRepository planRepository;
+    @Mock private RedisTemplate<String, String> redisTemplate;
 
     private UserService userService;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, photoRepository, storageService);
+        userService = new UserService(userRepository, photoRepository, storageService,
+                swipeRepository, matchRepository, planRepository, redisTemplate);
     }
 
     @Test

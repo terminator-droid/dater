@@ -20,4 +20,6 @@ public interface EveningPlanRepository extends JpaRepository<EveningPlan, UUID> 
     List<EveningPlan> findByUserIdInAndVenueIdAndDate(Collection<UUID> userIds, UUID venueId, LocalDate date);
 
     Optional<EveningPlan> findByUserIdAndVenueIdAndDate(UUID userId, UUID venueId, LocalDate date);
+
+    void deleteAllByUserId(UUID userId);
 }

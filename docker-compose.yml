@@ -9,6 +9,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U datingapp -d datingapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mongodb:
     image: mongo:7
@@ -16,11 +21,21 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --eval \"db.adminCommand('ping')\" --quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -42,6 +57,29 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     volumes:
       - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "/usr/bin/kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   app:
     container_name: dating-service
@@ -49,18 +87,32 @@ services:
     ports:
       - "8081:8081"
     depends_on:
-      - postgres
-      - kafka
-      - mongodb
-      - redis
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/datingapp
-      SPRING.MONGODB.URI: mongodb://mongodb:27017/datingapp
-      SPRING.DATA.REDIS.HOST: redis
-      SPRING.KAFKA.BOOTSTRAP-SERVERS: kafka:9092
-
+      DB_URL: jdbc:postgresql://postgres:5432/datingapp
+      DB_USERNAME: datingapp
+      DB_PASSWORD: datingapp
+      MONGO_URI: mongodb://mongodb:27017/datingapp
+      REDIS_HOST: redis
+      KAFKA_SERVERS: kafka:9092
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio123
+      S3_BUCKET: dating-app-photos
+      S3_PUBLIC_URL: http://localhost:9000/dating-app-photos
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   mongo_data:
   kafka-data:
+  minio_data:

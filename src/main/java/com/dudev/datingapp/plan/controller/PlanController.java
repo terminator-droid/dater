@@ -4,6 +4,8 @@ import com.dudev.datingapp.common.ApiResponse;
 import com.dudev.datingapp.plan.dto.CreatePlanDto;
 import com.dudev.datingapp.plan.dto.PlanDto;
 import com.dudev.datingapp.plan.service.PlanService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -18,18 +20,21 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/plans")
 @RequiredArgsConstructor
+@Tag(name = "Plans", description = "Evening plans — going out tonight")
 public class PlanController {
 
     private final PlanService planService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create an evening plan for a venue and date")
     public ApiResponse<PlanDto> createPlan(Authentication auth,
                                             @Valid @RequestBody CreatePlanDto dto) {
         return ApiResponse.ok(planService.createPlan(currentUserId(auth), dto));
     }
 
     @GetMapping
+    @Operation(summary = "Get own plans for a given date")
     public ApiResponse<List<PlanDto>> getPlans(
             Authentication auth,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -38,6 +43,7 @@ public class PlanController {
 
     @DeleteMapping("/{planId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Cancel an evening plan")
     public void deletePlan(Authentication auth, @PathVariable UUID planId) {
         planService.deletePlan(currentUserId(auth), planId);
     }

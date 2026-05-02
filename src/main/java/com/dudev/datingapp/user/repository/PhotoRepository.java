@@ -16,4 +16,6 @@ public interface PhotoRepository extends JpaRepository<Photo, UUID> {
     int countByUserId(UUID userId);
 
     Optional<Photo> findByIdAndUserId(UUID id, UUID userId);
+
+    void deleteAllByUserId(UUID userId);
 }

@@ -13,5 +13,6 @@
     <include file="migrations/006_create_swipes.sql" relativeToChangelogFile="true"/>
     <include file="migrations/007_create_matches.sql" relativeToChangelogFile="true"/>
     <include file="migrations/008_add_google_sub_to_users.sql" relativeToChangelogFile="true"/>
+    <include file="migrations/009_fix_phone_length_and_cascades.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

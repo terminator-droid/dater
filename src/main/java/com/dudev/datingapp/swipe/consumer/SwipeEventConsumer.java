@@ -19,14 +19,18 @@ public class SwipeEventConsumer {
 
     @KafkaListener(topics = "swipe-events", containerFactory = "swipeEventListenerContainerFactory")
     public void onSwipeEvent(SwipeEvent event) {
-        if (event.direction() != SwipeDirection.LIKE) {
-            return;
-        }
-        boolean reverseExists = swipeRepository.existsBySwiperIdAndSwipedIdAndDirectionAndDate(
-                event.swipedId(), event.swiperId(), SwipeDirection.LIKE, event.date());
-        if (reverseExists) {
-            log.info("Mutual like detected: {} <-> {}", event.swiperId(), event.swipedId());
-            matchService.createMatchIfAbsent(event);
+        try {
+            if (event.direction() != SwipeDirection.LIKE) {
+                return;
+            }
+            boolean reverseExists = swipeRepository.existsBySwiperIdAndSwipedIdAndDirectionAndDate(
+                    event.swipedId(), event.swiperId(), SwipeDirection.LIKE, event.date());
+            if (reverseExists) {
+                log.info("Mutual like detected: {} <-> {}", event.swiperId(), event.swipedId());
+                matchService.createMatchIfAbsent(event);
+            }
+        } catch (Exception e) {
+            log.error("Failed to process swipe event {}: {}", event, e.getMessage(), e);
         }
     }
 }

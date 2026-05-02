@@ -32,6 +32,16 @@ public class VenueService {
                 .orElseThrow(() -> new ResourceNotFoundException("Venue not found: " + id));
     }
 
+    @Transactional(readOnly = true)
+    public List<VenueDto> findNearby(double lat, double lon, double radiusKm) {
+        return venueRepository.findAll().stream()
+                .filter(v -> haversineKm(lat, lon, v.getLatitude(), v.getLongitude()) <= radiusKm)
+                .sorted(java.util.Comparator.comparingDouble(
+                        v -> haversineKm(lat, lon, v.getLatitude(), v.getLongitude())))
+                .map(this::toDto)
+                .toList();
+    }
+
     public VenueDto toDto(Venue venue) {
         return new VenueDto(
                 venue.getId(),
@@ -42,5 +52,15 @@ public class VenueService {
                 venue.getArea(),
                 venue.getCategory()
         );
+    }
+
+    private double haversineKm(double lat1, double lon1, double lat2, double lon2) {
+        double R = 6371.0;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 }

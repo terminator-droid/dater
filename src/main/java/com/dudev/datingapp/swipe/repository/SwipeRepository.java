@@ -11,4 +11,6 @@ public interface SwipeRepository extends JpaRepository<Swipe, UUID> {
 
     boolean existsBySwiperIdAndSwipedIdAndDirectionAndDate(
             UUID swiperId, UUID swipedId, SwipeDirection direction, LocalDate date);
+
+    void deleteAllBySwiperIdOrSwipedId(UUID swiperId, UUID swipedId);
 }
