@@ -53,6 +53,7 @@ public class PlanService {
         plan.setDate(dto.date());
         plan.setDrinkTonight(dto.drinkTonight());
         plan.setTopicIds(dto.topicIds());
+        plan.setAppearanceHint(dto.appearanceHint());
         planRepository.save(plan);
 
         registerInGeo(userId, venue, dto.date());
@@ -103,7 +104,8 @@ public class PlanService {
                 plan.getDate(),
                 plan.getDrinkTonight(),
                 plan.getStatus(),
-                plan.getTopicIds()
+                plan.getTopicIds(),
+                plan.getAppearanceHint()
         );
     }
 }

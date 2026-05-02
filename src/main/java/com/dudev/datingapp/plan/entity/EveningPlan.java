@@ -37,6 +37,9 @@ public class EveningPlan extends BaseEntity {
     @Column(nullable = false)
     private PlanStatus status = PlanStatus.PLANNED;
 
+    @Column(name = "appearance_hint", length = 200)
+    private String appearanceHint;
+
     @ElementCollection
     @CollectionTable(
             name = "evening_plan_topics",

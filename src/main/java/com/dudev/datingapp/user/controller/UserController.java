@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,15 +36,16 @@ public class UserController {
     @PutMapping("/me")
     @Operation(summary = "Update own profile")
     public ApiResponse<UserProfileDto> updateProfile(Authentication auth,
-                                                      @Valid @RequestBody UpdateProfileDto dto) {
+                                                     @Valid @RequestBody UpdateProfileDto dto) {
         return ApiResponse.ok(userService.updateProfile(currentUserId(auth), dto));
     }
 
-    @PostMapping("/me/photos")
+    @PostMapping(value = "/me/photos",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Upload a profile photo")
     public ApiResponse<PhotoDto> uploadPhoto(Authentication auth,
-                                              @RequestPart("file") MultipartFile file) throws IOException {
+                                             @RequestPart("file") MultipartFile file) throws IOException {
         return ApiResponse.ok(userService.addPhoto(currentUserId(auth), file));
     }
 

@@ -104,7 +104,8 @@ public class MatchService {
                 .toList();
 
         return new MatchDetailDto(match.getId(), venue.getId(), venue.getName(),
-                match.getDate(), match.getStatus(), partnerPlan.getDrinkTonight(), tags);
+                venue.getAddress(), match.getDate(), match.getStatus(),
+                partnerPlan.getDrinkTonight(), tags, partnerPlan.getAppearanceHint());
     }
 
     @Transactional

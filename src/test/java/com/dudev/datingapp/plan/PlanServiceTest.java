@@ -125,7 +125,7 @@ class PlanServiceTest {
     }
 
     private CreatePlanDto createPlanDto() {
-        return new CreatePlanDto(VENUE_ID, TODAY, "негрони", List.of("t1", "t2"));
+        return new CreatePlanDto(VENUE_ID, TODAY, "негрони", List.of("t1", "t2"), "синяя куртка, у барной стойки");
     }
 
     private EveningPlan buildPlan() {

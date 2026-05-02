@@ -13,6 +13,7 @@ public record PlanDto(
         LocalDate date,
         String drinkTonight,
         PlanStatus status,
-        List<String> topicIds
+        List<String> topicIds,
+        String appearanceHint
 ) {
 }

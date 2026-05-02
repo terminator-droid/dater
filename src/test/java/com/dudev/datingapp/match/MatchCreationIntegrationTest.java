@@ -54,8 +54,8 @@ class MatchCreationIntegrationTest {
         UUID venueId = venueRepository.findAll().get(0).getId();
         LocalDate today = LocalDate.now();
 
-        planService.createPlan(id1, new CreatePlanDto(venueId, today, "Beer", List.of()));
-        planService.createPlan(id2, new CreatePlanDto(venueId, today, "Wine", List.of()));
+        planService.createPlan(id1, new CreatePlanDto(venueId, today, "Beer", List.of(), null));
+        planService.createPlan(id2, new CreatePlanDto(venueId, today, "Wine", List.of(), null));
 
         swipeService.swipe(id1, new SwipeRequest(id2, venueId, SwipeDirection.LIKE));
         swipeService.swipe(id2, new SwipeRequest(id1, venueId, SwipeDirection.LIKE));
@@ -76,8 +76,8 @@ class MatchCreationIntegrationTest {
         UUID venueId = venueRepository.findAll().get(0).getId();
         LocalDate today = LocalDate.now();
 
-        planService.createPlan(id1, new CreatePlanDto(venueId, today, "Beer", List.of()));
-        planService.createPlan(id2, new CreatePlanDto(venueId, today, "Wine", List.of()));
+        planService.createPlan(id1, new CreatePlanDto(venueId, today, "Beer", List.of(), null));
+        planService.createPlan(id2, new CreatePlanDto(venueId, today, "Wine", List.of(), null));
 
         swipeService.swipe(id1, new SwipeRequest(id2, venueId, SwipeDirection.PASS));
 

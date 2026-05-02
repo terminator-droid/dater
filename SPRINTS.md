@@ -104,3 +104,12 @@
 
 - [x] **`SecurityConfig` — дублирующийся `requestMatchers` для Swagger** — убрать дублирующийся блок `permitAll` для `/swagger-ui/**` и `/v3/api-docs/**`
 - [x] **Kafka consumers — отсутствует `try/catch`** — `SwipeEventConsumer` и `NotificationConsumer` не оборачивают тело в `try/catch`; любое runtime-исключение = бесконечный retry; добавить `try/catch (Exception e)` с `log.error`
+
+---
+
+## Sprint 8 — Appearance hint и полный адрес заведения в матче
+
+- [x] **`appearance_hint` в плане** — добавить поле `VARCHAR(200)` в `evening_plans` (миграция `010`); заполняется при создании плана; необязательное
+- [x] **`CreatePlanDto.appearanceHint`** — опциональное поле `@Size(max = 200)`, отдаётся в `PlanDto`
+- [x] **`MatchDetailDto.venueAddress`** — добавить адрес заведения в детали матча, чтобы пользователь знал, куда идти (раньше был только `venueName`)
+- [x] **`MatchDetailDto.partnerAppearanceHint`** — добавить подсказку для узнавания партнёра из его плана

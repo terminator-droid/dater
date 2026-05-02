@@ -10,9 +10,11 @@ public record MatchDetailDto(
         UUID matchId,
         UUID venueId,
         String venueName,
+        String venueAddress,
         LocalDate date,
         MatchStatus status,
         String partnerDrinkTonight,
-        List<String> partnerTopicTags
+        List<String> partnerTopicTags,
+        String partnerAppearanceHint
 ) {
 }

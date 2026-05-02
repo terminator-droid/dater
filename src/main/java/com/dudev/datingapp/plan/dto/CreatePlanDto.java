@@ -12,6 +12,7 @@ public record CreatePlanDto(
         @NotNull UUID venueId,
         @NotNull LocalDate date,
         @NotBlank String drinkTonight,
-        @NotNull @Size(min = 1, max = 5) List<String> topicIds
+        @NotNull @Size(min = 1, max = 5) List<String> topicIds,
+        @Size(max = 200) String appearanceHint
 ) {
 }
