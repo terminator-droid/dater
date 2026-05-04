@@ -4,9 +4,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
@@ -24,9 +28,6 @@ public class PhotoStorageService {
 
     @Value("${app.s3.bucket}")
     private String bucket;
-
-    @Value("${app.s3.public-url}")
-    private String publicUrl;
 
     public String store(UUID userId, MultipartFile file) throws IOException {
         String contentType = file.getContentType();
@@ -54,9 +55,27 @@ public class PhotoStorageService {
                 .build());
     }
 
+    /// Resolves a stored object's public URL — built off the *current* HTTP
+    /// request host so phones on the LAN, Android emulators, and any other
+    /// client get a URL that resolves back to the same API server. Photos
+    /// stream through `/api/v1/photos/{key}` so we don't depend on the S3
+    /// endpoint being reachable from the device.
     public String toUrl(String key) {
-        return publicUrl + "/" + key;
+        return ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/v1/photos/")
+                .path(key)
+                .toUriString();
     }
+
+    public ObjectStream fetch(String key) {
+        ResponseInputStream<GetObjectResponse> in = s3Client.getObject(
+                GetObjectRequest.builder().bucket(bucket).key(key).build());
+        return new ObjectStream(in, in.response().contentType(),
+                in.response().contentLength());
+    }
+
+    public record ObjectStream(ResponseInputStream<GetObjectResponse> body,
+                                String contentType, Long contentLength) {}
 
     private String resolveExtension(String filename) {
         if (filename == null || !filename.contains(".")) return "jpg";
