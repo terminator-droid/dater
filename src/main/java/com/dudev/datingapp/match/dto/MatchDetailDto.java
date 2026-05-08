@@ -15,6 +15,7 @@ public record MatchDetailDto(
         MatchStatus status,
         String partnerDrinkTonight,
         List<String> partnerTopicTags,
-        String partnerAppearanceHint
+        String partnerAppearanceHint,
+        List<String> partnerPhotoUrls
 ) {
 }

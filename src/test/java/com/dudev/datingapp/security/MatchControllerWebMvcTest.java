@@ -73,7 +73,7 @@ class MatchControllerWebMvcTest {
         when(matchService.getMatchDetail(any(), any())).thenReturn(
                 new com.dudev.datingapp.match.dto.MatchDetailDto(
                         matchId, venueId, "Bar Name", "Малая Бронная ул., 32", LocalDate.now(),
-                        MatchStatus.PENDING, "Beer", List.of(), null
+                        MatchStatus.PENDING, "Beer", List.<String>of(), null, List.<String>of()
                 )
         );
 

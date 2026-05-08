@@ -1,6 +1,5 @@
 package com.dudev.datingapp.plan.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -11,8 +10,11 @@ import java.util.UUID;
 public record CreatePlanDto(
         @NotNull UUID venueId,
         @NotNull LocalDate date,
-        @NotBlank String drinkTonight,
-        @NotNull @Size(min = 1, max = 5) List<String> topicIds,
+        // Optional — users may not have picked a drink yet. Empty/null is fine.
+        String drinkTonight,
+        // Optional conversation topics; capped at 5 to keep the discovery
+        // card legible.
+        @Size(max = 5) List<String> topicIds,
         @Size(max = 200) String appearanceHint
 ) {
 }

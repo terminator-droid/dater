@@ -113,3 +113,43 @@
 - [x] **`CreatePlanDto.appearanceHint`** — опциональное поле `@Size(max = 200)`, отдаётся в `PlanDto`
 - [x] **`MatchDetailDto.venueAddress`** — добавить адрес заведения в детали матча, чтобы пользователь знал, куда идти (раньше был только `venueName`)
 - [x] **`MatchDetailDto.partnerAppearanceHint`** — добавить подсказку для узнавания партнёра из его плана
+
+---
+
+## Sprint 9 — Множественные планы и активный план ✅
+
+Пользователь может составить несколько планов (разные заведения / даты), но **только один может быть ACTIVE на конкретную дату**. Активный план — единственный, который участвует в дискавери (геопозиция в Redis). Также нужна возможность просматривать все планы и корректно удалять план вместе с зависимыми матчами.
+
+### Модель данных и миграции
+
+- [ ] **Миграция `011_plan_active_uniqueness_and_match_cascade.sql`**
+  - Partial unique index: `CREATE UNIQUE INDEX uq_active_plan_per_user_date ON evening_plans (user_id, date) WHERE status = 'ACTIVE';` — БД-гарантия одного активного плана в день.
+  - `ALTER TABLE matches DROP CONSTRAINT matches_plan1_id_fkey, ADD CONSTRAINT matches_plan1_id_fkey FOREIGN KEY (plan1_id) REFERENCES evening_plans (id) ON DELETE CASCADE;` (то же для `plan2_id`) — чтобы удаление плана каскадно удаляло зависимые матчи.
+
+### Сервис и репозиторий
+
+- [ ] **`EveningPlanRepository`**
+  - `findAllByUserId(UUID)` — все планы пользователя (с `JOIN FETCH venue, topicIds`).
+  - `@Modifying @Query` для массового перевода активных планов пользователя на дате в `PLANNED` (используется при активации другого плана).
+- [ ] **`PlanService.createPlan`**
+  - Если у пользователя на эту дату ещё нет ACTIVE-плана — новый план создаётся со статусом `ACTIVE` и регистрируется в Redis GEO (текущее поведение).
+  - Если ACTIVE-план уже есть — новый план создаётся со статусом `PLANNED`, в GEO не добавляется.
+- [ ] **`PlanService.activatePlan(userId, planId)`**
+  - Загрузить план, проверить владение.
+  - Перевести все остальные ACTIVE-планы пользователя на эту дату в `PLANNED` и удалить старого юзера из `geo:users:{date}`.
+  - Перевести этот план в `ACTIVE`, добавить пользователя в `geo:users:{date}` с координатами venue этого плана.
+- [ ] **`PlanService.getAllPlans(userId)`** — вернуть все планы пользователя (отсортировано по дате DESC).
+- [ ] **`PlanService.deletePlan`** — текущая JPA-каскадная логика остаётся; если удаляется ACTIVE-план — также убрать пользователя из `geo:users:{date}`. Каскад на матчи теперь дублируется на уровне БД (миграция 011).
+
+### Контроллер и DTO
+
+- [ ] **`POST /api/v1/plans/{planId}/activate`** — активировать конкретный план; возвращает обновлённый `PlanDto`.
+- [ ] **`GET /api/v1/plans`** (без параметров) — все планы пользователя.
+- [ ] **`GET /api/v1/plans?date=`** — планы на конкретную дату (без изменений).
+- [ ] **`PlanDto`** — поле `status` уже отдаётся; убедиться, что фронт может его читать.
+
+### Проверки
+
+- [ ] Удаление плана действительно удаляет связанные `matches` (JPA cascade + DB ON DELETE CASCADE).
+- [ ] Нельзя одновременно иметь два ACTIVE-плана на одну дату (ловится partial unique index).
+- [ ] После активации другого плана дискавери начинает работать с новой venue.

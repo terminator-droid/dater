@@ -14,6 +14,8 @@ import com.dudev.datingapp.plan.repository.EveningPlanRepository;
 import com.dudev.datingapp.swipe.event.SwipeEvent;
 import com.dudev.datingapp.topic.dto.TopicDto;
 import com.dudev.datingapp.topic.service.TopicService;
+import com.dudev.datingapp.user.repository.PhotoRepository;
+import com.dudev.datingapp.user.service.PhotoStorageService;
 import com.dudev.datingapp.venue.entity.Venue;
 import com.dudev.datingapp.venue.repository.VenueRepository;
 import lombok.RequiredArgsConstructor;
@@ -38,33 +40,39 @@ public class MatchService {
     private final EveningPlanRepository planRepository;
     private final VenueRepository venueRepository;
     private final TopicService topicService;
+    private final PhotoRepository photoRepository;
+    private final PhotoStorageService photoStorageService;
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
+    /// Creates the match if it doesn't already exist. Returns the matchId
+    /// either way so the caller (sync swipe path) can return it to the client.
     @Transactional
-    public void createMatchIfAbsent(SwipeEvent event) {
-        if (matchRepository.existsByUsersAndDate(event.swiperId(), event.swipedId(), event.date())) {
-            return;
-        }
+    public UUID createMatchIfAbsent(SwipeEvent event) {
+        return matchRepository
+                .findByUsersAndDate(event.swiperId(), event.swipedId(), event.date())
+                .map(Match::getId)
+                .orElseGet(() -> {
+                    EveningPlan plan1 = planRepository
+                            .findByUserIdAndVenueIdAndDate(event.swiperId(), event.venueId(), event.date())
+                            .orElseThrow(() -> new ResourceNotFoundException("Plan not found for swiper"));
+                    EveningPlan plan2 = planRepository
+                            .findByUserIdAndVenueIdAndDate(event.swipedId(), event.venueId(), event.date())
+                            .orElseThrow(() -> new ResourceNotFoundException("Plan not found for swiped user"));
 
-        EveningPlan plan1 = planRepository
-                .findByUserIdAndVenueIdAndDate(event.swiperId(), event.venueId(), event.date())
-                .orElseThrow(() -> new ResourceNotFoundException("Plan not found for swiper"));
-        EveningPlan plan2 = planRepository
-                .findByUserIdAndVenueIdAndDate(event.swipedId(), event.venueId(), event.date())
-                .orElseThrow(() -> new ResourceNotFoundException("Plan not found for swiped user"));
+                    Match match = new Match();
+                    match.setUser1Id(event.swiperId());
+                    match.setUser2Id(event.swipedId());
+                    match.setVenueId(event.venueId());
+                    match.setPlan1Id(plan1.getId());
+                    match.setPlan2Id(plan2.getId());
+                    match.setDate(event.date());
+                    matchRepository.save(match);
 
-        Match match = new Match();
-        match.setUser1Id(event.swiperId());
-        match.setUser2Id(event.swipedId());
-        match.setVenueId(event.venueId());
-        match.setPlan1Id(plan1.getId());
-        match.setPlan2Id(plan2.getId());
-        match.setDate(event.date());
-        matchRepository.save(match);
-
-        kafkaTemplate.send(MATCH_EVENTS_TOPIC, match.getId().toString(),
-                new MatchEvent(match.getId(), match.getUser1Id(), match.getUser2Id(),
-                        match.getVenueId(), match.getDate()));
+                    kafkaTemplate.send(MATCH_EVENTS_TOPIC, match.getId().toString(),
+                            new MatchEvent(match.getId(), match.getUser1Id(), match.getUser2Id(),
+                                    match.getVenueId(), match.getDate()));
+                    return match.getId();
+                });
     }
 
     @Transactional(readOnly = true)
@@ -73,15 +81,25 @@ public class MatchService {
         if (matches.isEmpty()) {
             return List.of();
         }
-        Set<UUID> venueIds = matches.stream().map(Match::getVenueId).collect(Collectors.toSet());
-        Map<UUID, Venue> venueById = venueRepository.findByIdIn(venueIds).stream()
-                .collect(Collectors.toMap(Venue::getId, Function.identity()));
+
+        // Each row needs the *partner's* bar so the user knows where to go.
+        // match.venueId is the swiper's bar, which can differ now that
+        // discovery spans a 2km radius.
+        Set<UUID> partnerPlanIds = matches.stream()
+                .map(m -> userId.equals(m.getUser1Id()) ? m.getPlan2Id() : m.getPlan1Id())
+                .collect(Collectors.toSet());
+        Map<UUID, EveningPlan> planById = planRepository.findAllById(partnerPlanIds).stream()
+                .collect(Collectors.toMap(EveningPlan::getId, Function.identity()));
 
         return matches.stream()
                 .map(m -> {
-                    Venue venue = venueById.get(m.getVenueId());
-                    return new MatchSummaryDto(m.getId(), m.getVenueId(),
-                            venue != null ? venue.getName() : null, m.getDate(), m.getStatus());
+                    UUID partnerPlanId = userId.equals(m.getUser1Id()) ? m.getPlan2Id() : m.getPlan1Id();
+                    EveningPlan partnerPlan = planById.get(partnerPlanId);
+                    Venue venue = partnerPlan != null ? partnerPlan.getVenue() : null;
+                    return new MatchSummaryDto(m.getId(),
+                            venue != null ? venue.getId() : m.getVenueId(),
+                            venue != null ? venue.getName() : null,
+                            m.getDate(), m.getStatus());
                 })
                 .toList();
     }
@@ -91,11 +109,15 @@ public class MatchService {
         Match match = matchRepository.findByIdForUser(matchId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Match not found"));
 
+        UUID partnerUserId = userId.equals(match.getUser1Id()) ? match.getUser2Id() : match.getUser1Id();
         UUID partnerPlanId = userId.equals(match.getUser1Id()) ? match.getPlan2Id() : match.getPlan1Id();
         EveningPlan partnerPlan = planRepository.findById(partnerPlanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Partner plan not found"));
 
-        Venue venue = venueRepository.findById(match.getVenueId())
+        // Use the partner's plan venue, not match.venueId (which is the
+        // requester's bar). With the cross-bar discovery radius the two
+        // can differ — and the user needs to know where to *go*.
+        Venue venue = venueRepository.findById(partnerPlan.getVenue().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Venue not found"));
 
         List<String> tags = topicService.findByIds(partnerPlan.getTopicIds()).stream()
@@ -103,9 +125,14 @@ public class MatchService {
                 .distinct()
                 .toList();
 
+        List<String> partnerPhotoUrls = photoRepository.findByUserIdOrderByPosition(partnerUserId).stream()
+                .map(p -> photoStorageService.toUrl(p.getS3Key()))
+                .toList();
+
         return new MatchDetailDto(match.getId(), venue.getId(), venue.getName(),
                 venue.getAddress(), match.getDate(), match.getStatus(),
-                partnerPlan.getDrinkTonight(), tags, partnerPlan.getAppearanceHint());
+                partnerPlan.getDrinkTonight(), tags, partnerPlan.getAppearanceHint(),
+                partnerPhotoUrls);
     }
 
     @Transactional

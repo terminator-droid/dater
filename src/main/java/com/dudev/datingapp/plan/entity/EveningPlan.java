@@ -1,6 +1,7 @@
 package com.dudev.datingapp.plan.entity;
 
 import com.dudev.datingapp.common.BaseEntity;
+import com.dudev.datingapp.match.entity.Match;
 import com.dudev.datingapp.user.entity.User;
 import com.dudev.datingapp.venue.entity.Venue;
 import jakarta.persistence.*;
@@ -47,4 +48,10 @@ public class EveningPlan extends BaseEntity {
     )
     @Column(name = "topic_id")
     private List<String> topicIds = new ArrayList<>();
+
+    @OneToMany(mappedBy = "plan1", cascade = CascadeType.REMOVE)
+    private List<Match> matches1 = new ArrayList<>();
+
+    @OneToMany(mappedBy = "plan2", cascade = CascadeType.REMOVE)
+    private List<Match> matches2 = new ArrayList<>();
 }

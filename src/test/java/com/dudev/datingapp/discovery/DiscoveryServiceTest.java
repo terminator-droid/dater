@@ -6,9 +6,11 @@ import com.dudev.datingapp.plan.entity.EveningPlan;
 import com.dudev.datingapp.plan.repository.EveningPlanRepository;
 import com.dudev.datingapp.topic.dto.TopicDto;
 import com.dudev.datingapp.topic.service.TopicService;
+import com.dudev.datingapp.user.entity.Gender;
 import com.dudev.datingapp.user.entity.Photo;
 import com.dudev.datingapp.user.entity.User;
 import com.dudev.datingapp.user.repository.PhotoRepository;
+import com.dudev.datingapp.user.repository.UserRepository;
 import com.dudev.datingapp.user.service.PhotoStorageService;
 import com.dudev.datingapp.venue.entity.Venue;
 import com.dudev.datingapp.venue.repository.VenueRepository;
@@ -48,6 +50,7 @@ class DiscoveryServiceTest {
     @Mock RedisTemplate<String, String> redisTemplate;
     @Mock GeoOperations<String, String> geoOps;
     @Mock SetOperations<String, String> setOps;
+    @Mock UserRepository userRepository;
 
     @InjectMocks
     DiscoveryService discoveryService;
@@ -76,12 +79,23 @@ class DiscoveryServiceTest {
         when(redisTemplate.opsForSet()).thenReturn(setOps);
         when(setOps.members(anyString())).thenReturn(Set.of(swipedUserId.toString()));
 
+        User currentUser = new User();
+        currentUser.setGender(Gender.MALE);
+        when(userRepository.findById(currentUserId)).thenReturn(Optional.of(currentUser));
+
         User candidateUser = new User();
         ReflectionTestUtils.setField(candidateUser, "id", candidateId);
+        candidateUser.setGender(Gender.FEMALE);
+        Venue candidateVenue = new Venue();
+        ReflectionTestUtils.setField(candidateVenue, "id", UUID.randomUUID());
+        candidateVenue.setName("Bar Y");
+        candidateVenue.setAddress("ул. Тверская, 5");
         EveningPlan plan = new EveningPlan();
         plan.setUser(candidateUser);
+        plan.setVenue(candidateVenue);
         plan.setTopicIds(List.of("t1", "t2"));
-        when(planRepository.findByUserIdInAndVenueIdAndDate(List.of(candidateId), venueId, date))
+        when(planRepository.findByUserIdInAndDateAndUserGenderNot(
+                List.of(candidateId), date, Gender.MALE))
                 .thenReturn(List.of(plan));
 
         when(topicService.findByIds(List.of("t1", "t2"))).thenReturn(List.of(
@@ -91,7 +105,7 @@ class DiscoveryServiceTest {
 
         Photo photo = new Photo();
         photo.setS3Key("uuid/photo.jpg");
-        when(photoRepository.findFirstByUserIdOrderByPositionAsc(candidateId)).thenReturn(Optional.of(photo));
+        when(photoRepository.findByUserIdOrderByPosition(candidateId)).thenReturn(List.of(photo));
         when(photoStorageService.toUrl("uuid/photo.jpg")).thenReturn("/photos/uuid/photo.jpg");
 
         List<DiscoveryCardDto> cards = discoveryService.discover(currentUserId, venueId, date);
@@ -101,6 +115,8 @@ class DiscoveryServiceTest {
         assertEquals(candidateId, card.userId());
         assertEquals("/photos/uuid/photo.jpg", card.photoUrl());
         assertEquals(List.of("tag1", "tag2", "tag3"), card.topicTags());
+        assertEquals("Bar Y", card.venueName());
+        assertEquals("ул. Тверская, 5", card.venueAddress());
     }
 
     @Test

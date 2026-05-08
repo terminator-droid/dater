@@ -1,6 +1,7 @@
 package com.dudev.datingapp.match.entity;
 
 import com.dudev.datingapp.common.BaseEntity;
+import com.dudev.datingapp.plan.entity.EveningPlan;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -37,4 +38,12 @@ public class Match extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private MatchStatus status = MatchStatus.PENDING;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plan1_id", insertable = false, updatable = false)
+    private EveningPlan plan1;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plan2_id", insertable = false, updatable = false)
+    private EveningPlan plan2;
 }

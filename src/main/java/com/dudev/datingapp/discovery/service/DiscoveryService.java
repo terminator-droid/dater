@@ -8,7 +8,10 @@ import com.dudev.datingapp.plan.service.PlanService;
 import com.dudev.datingapp.swipe.service.SwipeService;
 import com.dudev.datingapp.topic.dto.TopicDto;
 import com.dudev.datingapp.topic.service.TopicService;
+import com.dudev.datingapp.user.entity.Gender;
+import com.dudev.datingapp.user.entity.User;
 import com.dudev.datingapp.user.repository.PhotoRepository;
+import com.dudev.datingapp.user.repository.UserRepository;
 import com.dudev.datingapp.user.service.PhotoStorageService;
 import com.dudev.datingapp.venue.entity.Venue;
 import com.dudev.datingapp.venue.repository.VenueRepository;
@@ -19,6 +22,7 @@ import org.springframework.data.geo.GeoResults;
 import org.springframework.data.geo.Point;
 import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +45,11 @@ public class DiscoveryService {
     private final TopicService topicService;
     private final PhotoStorageService photoStorageService;
     private final RedisTemplate<String, String> redisTemplate;
+    private final UserRepository userRepository;
+
+    /// Search radius — Discovery shows the requester's bar plus any other
+    /// venue within this distance, so users staying nearby still appear.
+    private static final double DISCOVERY_RADIUS_KM = 2.0;
 
     @Transactional(readOnly = true)
     public List<DiscoveryCardDto> discover(UUID currentUserId, UUID venueId, LocalDate date) {
@@ -50,7 +59,7 @@ public class DiscoveryService {
         String geoKey = PlanService.GEO_KEY_PREFIX + date;
         Circle circle = new Circle(
                 new Point(venue.getLongitude(), venue.getLatitude()),
-                new Distance(0.2, org.springframework.data.geo.Metrics.KILOMETERS));
+                new Distance(DISCOVERY_RADIUS_KM, org.springframework.data.geo.Metrics.KILOMETERS));
         GeoResults<RedisGeoCommands.GeoLocation<String>> geoResults =
                 redisTemplate.opsForGeo().radius(geoKey, circle);
 
@@ -74,10 +83,18 @@ public class DiscoveryService {
             return List.of();
         }
 
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        // Candidates can be at *any* venue inside the radius — pull each
+        // user's own active plan for the date so we know where they actually
+        // are, not where the requester is.
         Map<UUID, EveningPlan> planByUserId = planRepository
-                .findByUserIdInAndVenueIdAndDate(candidateIds, venueId, date)
+                .findByUserIdInAndDateAndUserGenderNot(candidateIds, date, currentUser.getGender())
                 .stream()
-                .collect(Collectors.toMap(p -> p.getUser().getId(), Function.identity()));
+                .collect(Collectors.toMap(p -> p.getUser().getId(), Function.identity(),
+                        // If a user has multiple plans on the date, prefer the active one.
+                        (a, b) -> a.getStatus() == com.dudev.datingapp.plan.entity.PlanStatus.ACTIVE ? a : b));
 
         List<String> allTopicIds = planByUserId.values().stream()
                 .flatMap(p -> p.getTopicIds().stream())
@@ -91,14 +108,18 @@ public class DiscoveryService {
                 .filter(planByUserId::containsKey)
                 .map(userId -> {
                     EveningPlan plan = planByUserId.get(userId);
+                    Venue partnerVenue = plan.getVenue();
                     List<String> tags = plan.getTopicIds().stream()
                             .flatMap(tid -> tagsByTopicId.getOrDefault(tid, List.of()).stream())
                             .distinct()
                             .toList();
-                    String photoUrl = photoRepository.findFirstByUserIdOrderByPositionAsc(userId)
+                    List<String> photoUrls = photoRepository.findByUserIdOrderByPosition(userId).stream()
                             .map(p -> photoStorageService.toUrl(p.getS3Key()))
-                            .orElse(null);
-                    return new DiscoveryCardDto(userId, photoUrl, tags);
+                            .toList();
+                    String photoUrl = photoUrls.isEmpty() ? null : photoUrls.get(0);
+                    return new DiscoveryCardDto(
+                            userId, photoUrl, photoUrls, tags,
+                            partnerVenue.getId(), partnerVenue.getName(), partnerVenue.getAddress());
                 })
                 .toList();
     }

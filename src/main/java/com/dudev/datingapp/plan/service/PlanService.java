@@ -5,6 +5,7 @@ import com.dudev.datingapp.common.exception.ResourceNotFoundException;
 import com.dudev.datingapp.plan.dto.CreatePlanDto;
 import com.dudev.datingapp.plan.dto.PlanDto;
 import com.dudev.datingapp.plan.entity.EveningPlan;
+import com.dudev.datingapp.plan.entity.PlanStatus;
 import com.dudev.datingapp.plan.repository.EveningPlanRepository;
 import com.dudev.datingapp.user.entity.User;
 import com.dudev.datingapp.user.repository.UserRepository;
@@ -47,24 +48,62 @@ public class PlanService {
         Venue venue = venueRepository.findById(dto.venueId())
                 .orElseThrow(() -> new ResourceNotFoundException("Venue not found"));
 
+        boolean hasActive = planRepository.existsByUserIdAndDateAndStatus(
+                userId, dto.date(), PlanStatus.ACTIVE);
+
         EveningPlan plan = new EveningPlan();
         plan.setUser(user);
         plan.setVenue(venue);
         plan.setDate(dto.date());
-        plan.setDrinkTonight(dto.drinkTonight());
-        plan.setTopicIds(dto.topicIds());
+        // drink + topics are optional now — store empty rather than null so
+        // downstream iteration / DTO mapping doesn't have to null-check.
+        plan.setDrinkTonight(dto.drinkTonight() == null ? "" : dto.drinkTonight());
+        plan.setTopicIds(dto.topicIds() == null ? List.of() : dto.topicIds());
         plan.setAppearanceHint(dto.appearanceHint());
+        plan.setStatus(hasActive ? PlanStatus.PLANNED : PlanStatus.ACTIVE);
         planRepository.save(plan);
 
-        registerInGeo(userId, venue, dto.date());
+        if (!hasActive) {
+            registerInGeo(userId, venue, dto.date());
+        }
 
         return toDto(plan);
     }
 
     @Transactional(readOnly = true)
     public List<PlanDto> getPlans(UUID userId, LocalDate date) {
-        return planRepository.findByUserIdAndDate(userId, date)
+        return planRepository.findByUserIdAndDateWithVenueAndTopics(userId, date)
                 .stream().map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlanDto> getAllPlans(UUID userId) {
+        // Only today + future. Past plans are kept in DB (matches reference
+        // them) but never shown — the Plans tab only carries actionable items.
+        LocalDate today = LocalDate.now();
+        return planRepository.findAllByUserIdWithVenueAndTopics(userId)
+                .stream()
+                .filter(p -> !p.getDate().isBefore(today))
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Transactional
+    public PlanDto activatePlan(UUID userId, UUID planId) {
+        EveningPlan plan = planRepository.findByIdAndUserId(planId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
+
+        if (plan.getStatus() == PlanStatus.ACTIVE) {
+            return toDto(plan);
+        }
+
+        planRepository.deactivateOtherActivePlans(userId, plan.getDate(), plan.getId());
+        plan.setStatus(PlanStatus.ACTIVE);
+        planRepository.save(plan);
+
+        registerInGeo(userId, plan.getVenue(), plan.getDate());
+
+        return toDto(plan);
     }
 
     @Transactional
@@ -72,8 +111,14 @@ public class PlanService {
         EveningPlan plan = planRepository.findByIdAndUserId(planId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
 
-        removeFromGeo(userId, plan.getDate());
+        boolean wasActive = plan.getStatus() == PlanStatus.ACTIVE;
+        LocalDate date = plan.getDate();
+
         planRepository.delete(plan);
+
+        if (wasActive) {
+            removeFromGeo(userId, date);
+        }
     }
 
     private void registerInGeo(UUID userId, Venue venue, LocalDate date) {

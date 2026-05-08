@@ -34,16 +34,27 @@ public class PlanController {
     }
 
     @GetMapping
-    @Operation(summary = "Get own plans for a given date")
+    @Operation(summary = "Get plans — all plans of the user, or only those on a given date")
     public ApiResponse<List<PlanDto>> getPlans(
             Authentication auth,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ApiResponse.ok(planService.getPlans(currentUserId(auth), date));
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        UUID userId = currentUserId(auth);
+        List<PlanDto> plans = (date == null)
+                ? planService.getAllPlans(userId)
+                : planService.getPlans(userId, date);
+        return ApiResponse.ok(plans);
+    }
+
+    @PostMapping("/{planId}/activate")
+    @Operation(summary = "Activate a plan; deactivates any other active plan on the same date")
+    public ApiResponse<PlanDto> activatePlan(Authentication auth, @PathVariable UUID planId) {
+        return ApiResponse.ok(planService.activatePlan(currentUserId(auth), planId));
     }
 
     @DeleteMapping("/{planId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Cancel an evening plan")
+    @Operation(summary = "Cancel an evening plan (cascades to dependent matches)")
     public void deletePlan(Authentication auth, @PathVariable UUID planId) {
         planService.deletePlan(currentUserId(auth), planId);
     }

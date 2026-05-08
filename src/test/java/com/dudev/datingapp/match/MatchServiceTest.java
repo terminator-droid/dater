@@ -15,6 +15,8 @@ import com.dudev.datingapp.swipe.event.SwipeEvent;
 import com.dudev.datingapp.topic.dto.TopicDto;
 import com.dudev.datingapp.topic.service.TopicService;
 import com.dudev.datingapp.user.entity.User;
+import com.dudev.datingapp.user.repository.PhotoRepository;
+import com.dudev.datingapp.user.service.PhotoStorageService;
 import com.dudev.datingapp.venue.entity.Venue;
 import com.dudev.datingapp.venue.repository.VenueRepository;
 import org.junit.jupiter.api.Test;
@@ -42,6 +44,8 @@ class MatchServiceTest {
     @Mock EveningPlanRepository planRepository;
     @Mock VenueRepository venueRepository;
     @Mock TopicService topicService;
+    @Mock PhotoRepository photoRepository;
+    @Mock PhotoStorageService photoStorageService;
     @Mock KafkaTemplate<String, Object> kafkaTemplate;
     @InjectMocks MatchService matchService;
 
@@ -52,7 +56,7 @@ class MatchServiceTest {
     @Test
     void createMatchIfAbsent_newMatch_savesAndPublishesMatchEvent() {
         SwipeEvent event = new SwipeEvent(swiperId, swipedId, venueId, LocalDate.now(), SwipeDirection.LIKE);
-        when(matchRepository.existsByUsersAndDate(swiperId, swipedId, event.date())).thenReturn(false);
+        when(matchRepository.findByUsersAndDate(swiperId, swipedId, event.date())).thenReturn(Optional.empty());
 
         when(planRepository.findByUserIdAndVenueIdAndDate(swiperId, venueId, event.date()))
                 .thenReturn(Optional.of(makePlan(swiperId)));
@@ -73,7 +77,10 @@ class MatchServiceTest {
     @Test
     void createMatchIfAbsent_alreadyExists_skips() {
         SwipeEvent event = new SwipeEvent(swiperId, swipedId, venueId, LocalDate.now(), SwipeDirection.LIKE);
-        when(matchRepository.existsByUsersAndDate(swiperId, swipedId, event.date())).thenReturn(true);
+        Match existing = new Match();
+        ReflectionTestUtils.setField(existing, "id", UUID.randomUUID());
+        when(matchRepository.findByUsersAndDate(swiperId, swipedId, event.date()))
+                .thenReturn(Optional.of(existing));
 
         matchService.createMatchIfAbsent(event);
 
@@ -96,14 +103,16 @@ class MatchServiceTest {
         match.setDate(LocalDate.now());
         when(matchRepository.findByIdForUser(matchId, swiperId)).thenReturn(Optional.of(match));
 
-        EveningPlan partnerPlan = makePlan(swipedId);
-        partnerPlan.setDrinkTonight("Negroni");
-        partnerPlan.setTopicIds(List.of("t1"));
-        when(planRepository.findById(plan2Id)).thenReturn(Optional.of(partnerPlan));
-
         Venue venue = new Venue();
         ReflectionTestUtils.setField(venue, "id", venueId);
         venue.setName("Bar Strelka");
+
+        EveningPlan partnerPlan = makePlan(swipedId);
+        partnerPlan.setDrinkTonight("Negroni");
+        partnerPlan.setTopicIds(List.of("t1"));
+        // Service now uses partnerPlan.venue (cross-bar discovery), not match.venueId.
+        partnerPlan.setVenue(venue);
+        when(planRepository.findById(plan2Id)).thenReturn(Optional.of(partnerPlan));
         when(venueRepository.findById(venueId)).thenReturn(Optional.of(venue));
 
         when(topicService.findByIds(List.of("t1"))).thenReturn(
