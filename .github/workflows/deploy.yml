@@ -1,0 +1,50 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ] # или master — смотря как у тебя называется
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build JAR
+        run: ./mvnw clean package -DskipTests -q
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy JAR to server
+        run: |
+          scp -i ~/.ssh/deploy_key -P ${{ secrets.SSH_PORT }} \
+            target/datingApp-0.0.1-SNAPSHOT.jar \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/app/app.jar
+            
+      - name: Copy docker files to server
+        run: |
+          scp -i ~/.ssh/deploy_key -P ${{ secrets.SSH_PORT }} \
+            Dockerfile docker-compose.yml \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/app/
+            
+      - name: Deploy on server
+        run: |
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "cd ~/app && docker compose build app && docker compose up -d"
